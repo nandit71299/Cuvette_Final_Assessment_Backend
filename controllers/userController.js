@@ -18,23 +18,19 @@ export const signUp = async (req, res) => {
     ) {
       return res.status(400).json({ error: "Invalid input" });
     }
-    // check if email already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({ error: "Email already exists" });
     }
 
-    // hash password
     const hashedPassword = await bcrypt.hash(
       password,
       Number(process.env.SALT_ROUNDS)
     );
     console.log(hashedPassword);
 
-    // create new user object
     const user = new User({ name, email, password: hashedPassword, country });
 
-    // save user to database
     await user.save();
     const userData = user.toObject();
     delete userData.password;
@@ -74,15 +70,13 @@ export const updateUser = async (req, res) => {
         .status(400)
         .json({ success: false, message: "User ID is required" });
     }
-    // check if email already exists (excluding the current user)
+
     const existingUser = await User.findOne({ email: email });
     if (existingUser) {
       return res
         .status(400)
         .json({ success: false, message: "Email already exists" });
     }
-
-    // hash password if provided
 
     const user = await User.findByIdAndUpdate(
       id,
@@ -113,15 +107,21 @@ export const signIn = async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) {
-      return res.status(400).json({ error: "All fields are required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "All fields are required" });
     }
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(404).json({ error: "User not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
     }
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(401).json({ error: "Invalid credentials" });
+      return res
+        .status(401)
+        .json({ success: false, message: "Invalid credentials" });
     }
     const token = generateAuthToken(user.email);
     if (!token) {
