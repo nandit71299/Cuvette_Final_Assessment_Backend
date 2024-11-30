@@ -1,16 +1,17 @@
 import mongoose from "mongoose";
 
+// Define schema for the Cart
 const schema = new mongoose.Schema({
   user_id: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User", // Reference to the 'User' model
     required: true,
   },
-  products: [
+  item: [
     {
-      product_id: {
+      item_id: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: "Products", // Reference to the 'Products' model
+        ref: "Item", // Reference to the 'Item' model (or Products)
         required: true,
       },
       quantity: {
@@ -29,6 +30,10 @@ const schema = new mongoose.Schema({
     required: true,
     default: 0,
   },
+  deliveryFee: {
+    type: Number,
+    default: 5, // Default delivery fee
+  },
   createdAt: {
     type: Date,
     default: Date.now,
@@ -39,6 +44,7 @@ const schema = new mongoose.Schema({
   },
 });
 
+// Create the Cart model
 const Cart = mongoose.model("Cart", schema);
 
 export default Cart;

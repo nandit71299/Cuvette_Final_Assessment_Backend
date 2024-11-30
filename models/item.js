@@ -29,8 +29,13 @@ const schema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  resId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Restraunts", // Reference to the Restraunts model
+    required: true, // Ensure every product has an associated restaurant
+  },
 });
 
-const Products = mongoose.model("Products", schema);
+const Item = mongoose.model("Item", schema);
 
-export default Products;
+export default Item;

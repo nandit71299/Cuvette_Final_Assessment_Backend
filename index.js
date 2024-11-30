@@ -6,6 +6,7 @@ import cors from "cors";
 import routes from "./routes/index.js";
 import authMiddleware from "./middlewares/authMiddleware.js";
 import insertRestaurants from "./config/initialResData.js";
+import seedProducts from "./config/initialItemData.js";
 
 dotenv.config();
 
@@ -28,6 +29,7 @@ app.get("/api/verifyToken", authMiddleware, (req, res) => {
 connectDb()
   .then(() => {
     insertRestaurants();
+    seedProducts();
     console.log("Connected to MongoDB");
 
     const PORT = process.env.PORT || 3001;

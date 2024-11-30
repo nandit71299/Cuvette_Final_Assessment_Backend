@@ -6,6 +6,14 @@ const schema = new mongoose.Schema({
     required: true,
     trim: true,
   },
+  logo: {
+    type: String,
+    required: true,
+  },
+  slogan: {
+    type: String,
+    trim: true,
+  },
   start_time: {
     type: Date,
     required: true,
