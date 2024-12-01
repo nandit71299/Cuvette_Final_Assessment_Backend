@@ -1,6 +1,9 @@
 import Cart from "../models/cart.js";
 import User from "../models/user.js";
 import Item from "../models/item.js"; // Assuming you have a Products model for fetching product details
+import dotenv from "dotenv";
+import jwt from "jsonwebtoken";
+dotenv.config();
 
 export const addToCart = async (req, res) => {
   try {
@@ -56,6 +59,7 @@ export const addToCart = async (req, res) => {
         item_id: itemId,
         quantity: 1,
         price: item.price, // Store the price of the product in the cart
+        image: item.image, // Assuming 'image' is the field in the Item model
       });
     }
 
@@ -68,14 +72,14 @@ export const addToCart = async (req, res) => {
     // Save the updated cart
     await userCart.save();
 
-    // Now, populate the cart with additional item details (title, description, price)
+    // Now, populate the cart with additional item details (title, description, price, and image)
     const populatedCart = await Cart.findOne({ user_id: findUser._id })
-      .populate("item.item_id", "title description price") // Populate item_id fields from Item model
+      .populate("item.item_id", "title description price image") // Populate item_id fields from Item model
       .exec();
 
-    // Flatten the cart items to bring title, description, and price directly into the item object
+    // Flatten the cart items to bring title, description, price, and image directly into the item object
     const flattenedItems = populatedCart.item.map((cartItem) => {
-      const { item_id, quantity, price, _id } = cartItem;
+      const { item_id, quantity, price, image, _id } = cartItem;
       if (item_id) {
         const { title, description } = item_id;
         return {
@@ -84,6 +88,7 @@ export const addToCart = async (req, res) => {
           title, // Item title
           description, // Item description
           price, // Item price
+          image, // Item image URL
           quantity, // Quantity in the cart
         };
       }
@@ -96,6 +101,7 @@ export const addToCart = async (req, res) => {
     res.json({
       success: true,
       message: "Item added to cart",
+      cartId: userCart._id, // Include the cart ID
       cart: { item: responseCart, totalPrice: userCart.totalPrice },
     });
   } catch (error) {
@@ -178,6 +184,7 @@ export const removeFromCart = async (req, res) => {
     res.json({
       success: true,
       message: "Item removed from cart",
+      cartId: userCart._id, // Include the cart ID
       cart: { item: responseCart, totalPrice: userCart.totalPrice },
     });
   } catch (error) {
@@ -188,40 +195,98 @@ export const removeFromCart = async (req, res) => {
 
 export const getCart = async (req, res) => {
   try {
-    const userEmail = req.user.email; // Get the authenticated user's email from the request
+    const { authorization } = req.headers; // Get the token from Authorization header
+    const cartId = req.query?.cartId; // Get cartId from query parameters
 
-    // Check if userEmail exists
-    if (!userEmail) {
-      return res.status(401).json({ error: "User not authenticated" });
+    let userEmail;
+    let userId;
+
+    // Step 1: Check for cartId first
+    if (cartId) {
+      // Try to fetch cart by cartId
+      const userCart = await Cart.findOne({ _id: cartId })
+        .populate("item.item_id", "title description price image")
+        .exec();
+
+      if (userCart) {
+        // Flatten the cart items and return the response
+        const flattenedItems = userCart.item.map((cartItem) => {
+          const { item_id, quantity, price, _id, image } = cartItem;
+          if (item_id) {
+            const { title, description } = item_id;
+            return {
+              _id, // Cart item ID
+              item_id: item_id._id, // Item ID
+              title, // Item title
+              description, // Item description
+              price, // Item price
+              image,
+              quantity, // Quantity in the cart
+            };
+          }
+        });
+
+        // Update the cart object with the flattened items
+        userCart.item = flattenedItems;
+
+        // Send the populated and flattened cart in the response along with cart ID
+        return res.json({
+          success: true,
+          cartId: userCart._id, // Include the cart ID
+          cart: flattenedItems,
+          message: "Cart fetched successfully",
+        });
+      } else {
+        return res.status(404).json({ error: "Cart not found" });
+      }
     }
 
-    // Find the user by email
-    const findUser = await User.findOne({ email: userEmail });
-    if (!findUser) {
-      return res.status(400).json({ error: "Invalid User" });
+    // Step 2: If no cartId, check for token in Authorization header
+    if (authorization && authorization.startsWith("Bearer ")) {
+      const token = authorization.split(" ")[1]; // Extract the token (remove "Bearer " prefix)
+
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET); // Verify the token
+        userEmail = decoded.email; // Assuming the token contains the email of the user
+        userId = decoded._id; // Assuming the token contains the _id of the user
+      } catch (err) {
+        // Token verification failed but continue to return the cart data without associating it with a user
+        userEmail = null; // No user email, will not associate the cart with a user
+        userId = null; // No user ID, will not associate the cart with a user
+      }
     }
 
-    // Find the user's cart and populate the item details (title, description, price) from Item model
-    const userCart = await Cart.findOne({ user_id: findUser._id })
-      .populate("item.item_id", "title description price") // Populate item_id fields from Item model
-      .exec(); // Execute the query
-    // If the cart doesn't exist, return an error
+    // Step 3: If neither cartId nor userEmail are found, return a bad request
+    if (!userEmail && !cartId) {
+      return res.status(400).json({ error: "No cartId or token provided" });
+    }
+
+    let userCart;
+
+    // Step 4: If user is authenticated (we have the userEmail), try to fetch the user's cart
+    if (userEmail) {
+      const user = await User.findOne({ email: userEmail }).exec();
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      userId = user._id;
+
+      // Fetch the user's cart using userId
+      userCart = await Cart.findOne({ user_id: userId })
+        .populate("item.item_id", "title description price image") // Populate item_id fields from Item model
+        .exec();
+    }
+
+    // If cart not found, return an error
     if (!userCart) {
       return res.status(404).json({ error: "Cart not found" });
     }
 
-    // Check if the population worked correctly by logging the userCart
-
-    // Flatten the cart items to bring title, description, and price directly into the item object
+    // Step 5: Flatten the cart items
     const flattenedItems = userCart.item.map((cartItem) => {
-      const { item_id, quantity, price, _id } = cartItem;
-
-      // If item_id is populated, it will contain title, description, and price
+      const { item_id, quantity, price, _id, image } = cartItem;
       if (item_id) {
         const { title, description } = item_id;
-
-        // Return the flattened object, including item details directly in the cart item
-
         return {
           _id, // Cart item ID
           item_id: item_id._id, // Item ID
@@ -229,6 +294,7 @@ export const getCart = async (req, res) => {
           description, // Item description
           price, // Item price
           quantity, // Quantity in the cart
+          image,
         };
       }
     });
@@ -236,10 +302,15 @@ export const getCart = async (req, res) => {
     // Update the cart object with the flattened items
     userCart.item = flattenedItems;
 
-    // Send the populated and flattened cart in the response
-    res.json({ success: true, cart: flattenedItems });
+    // Send the populated and flattened cart in the response along with cart ID
+    return res.json({
+      success: true,
+      cartId: userCart._id, // Include the cart ID
+      cart: flattenedItems,
+      message: "Cart fetched successfully",
+    });
   } catch (error) {
-    console.error("Error fetching cart:", error);
+    console.log(error);
     res.status(500).json({ error: "Server error" });
   }
 };
