@@ -18,7 +18,7 @@ app.use(bodyParser.json());
 app.use(cors());
 app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-app.use("/", (req, res) => {
+app.use("/status", (req, res) => {
   res.send("API is running");
 });
 app.use("/api", routes);
