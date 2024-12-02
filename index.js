@@ -7,6 +7,7 @@ import routes from "./routes/index.js";
 import authMiddleware from "./middlewares/authMiddleware.js";
 import insertRestaurants from "./config/initialResData.js";
 import seedProducts from "./config/initialItemData.js";
+import User from "./models/user.js";
 
 dotenv.config();
 
@@ -18,12 +19,14 @@ app.use(cors());
 app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use("/api", routes);
-app.get("/api/verifyToken", authMiddleware, (req, res) => {
+app.get("/api/verifyToken", authMiddleware, async (req, res) => {
   // If the token is valid, the request will reach here
+
+  const user = await User.findOne({ email: req.user.email });
   res.status(200).json({
     success: true,
     message: "Token is valid",
-    user: req.user, // This is optional, you can send back user data (if needed)
+    user: user,
   });
 });
 connectDb()
