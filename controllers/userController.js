@@ -294,10 +294,19 @@ export const deleteCard = async (req, res) => {
 export const addAddress = async (req, res) => {
   try {
     const { userId } = req.params;
-    const { street, city, state, country, postalCode } = req.body;
+    const { street, city, state, country, postalCode, phone, name } = req.body;
 
+    let { isDefault } = req.body;
     // Validate the required fields
-    if (!street || !city || !state || !country || !postalCode) {
+    if (
+      !street ||
+      !city ||
+      !state ||
+      !country ||
+      !postalCode ||
+      !phone ||
+      !name
+    ) {
       return res.status(400).json({ error: "All address fields are required" });
     }
 
@@ -307,8 +316,28 @@ export const addAddress = async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    // Add the new address to the addresses array
-    user.addresses.push({ street, city, state, country, postalCode });
+    // If isDefault is true or it's the first address, set it as default and remove default from others
+    if (isDefault) {
+      // Set all other addresses as non-default
+      user.addresses.forEach((address) => (address.isDefault = false));
+    } else if (user.addresses.length === 0) {
+      // If no addresses exist, make this address the default
+      isDefault = true; // First address should be default
+    }
+
+    // Add the new address
+    user.addresses.push({
+      street,
+      city,
+      state,
+      country,
+      postalCode,
+      phone,
+      name,
+      isDefault: isDefault || false, // Default is false unless explicitly passed as true
+    });
+
+    // Save the new address
     await user.save();
 
     return res.status(200).json({
@@ -327,9 +356,27 @@ export const addAddress = async (req, res) => {
 export const updateAddress = async (req, res) => {
   try {
     const { userId, addressId } = req.params; // addressId is the _id of the address to update
-    const { street, city, state, country, postalCode } = req.body;
+    const {
+      street,
+      city,
+      state,
+      country,
+      postalCode,
+      phone,
+      name,
+      isDefault, // Pass the 'setDefault' as true or false
+    } = req.body;
 
-    if (!street || !city || !state || !country || !postalCode) {
+    // Validate the required fields
+    if (
+      !street ||
+      !city ||
+      !state ||
+      !country ||
+      !postalCode ||
+      !phone ||
+      !name
+    ) {
       return res.status(400).json({ error: "All fields are required" });
     }
 
@@ -347,8 +394,32 @@ export const updateAddress = async (req, res) => {
       return res.status(404).json({ error: "Address not found" });
     }
 
-    // Update the address
-    user.addresses[addressIndex] = { street, city, state, country, postalCode };
+    let isToSetDefault = isDefault;
+    // If 'setDefault' is true, mark this address as the default and reset all other addresses
+    if (isDefault) {
+      // Set all other addresses as non-default
+      user.addresses.forEach((address) => {
+        address.isDefault = false;
+      });
+
+      // Set the current address as default
+      user.addresses[addressIndex].isDefault = true;
+      isToSetDefault = true;
+    }
+
+    // Update the address fields
+    user.addresses[addressIndex] = {
+      street,
+      city,
+      state,
+      country,
+      postalCode,
+      phone,
+      name,
+      isDefault: isToSetDefault, // retain the default status if not updated
+    };
+
+    // Save the updated user document
     await user.save();
 
     return res.status(200).json({

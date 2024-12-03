@@ -8,6 +8,10 @@ import authMiddleware from "./middlewares/authMiddleware.js";
 import insertRestaurants from "./config/initialResData.js";
 import seedProducts from "./config/initialItemData.js";
 import User from "./models/user.js";
+import path from "path";
+
+// ES Module workaround for __dirname
+const __dirname = path.dirname(new URL(import.meta.url).pathname);
 
 dotenv.config();
 
@@ -18,13 +22,15 @@ app.use(bodyParser.json());
 app.use(cors());
 app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+
 app.use("/status", (req, res) => {
   res.send("API is running");
 });
-app.use("/api", routes);
-app.get("/api/verifyToken", authMiddleware, async (req, res) => {
-  // If the token is valid, the request will reach here
 
+app.use("/api", routes);
+
+// Verify Token Route
+app.get("/api/verifyToken", authMiddleware, async (req, res) => {
   const user = await User.findOne({ email: req.user.email });
   res.status(200).json({
     success: true,
@@ -32,10 +38,27 @@ app.get("/api/verifyToken", authMiddleware, async (req, res) => {
     user: user,
   });
 });
+
+app.use(
+  "/api/categories/images",
+  express.static(path.join(process.cwd(), "public/assets/categories"))
+);
+app.use(
+  "/api/deals/images",
+  express.static(path.join(process.cwd(), "public/assets/deals"))
+);
+app.use(
+  "/api/general/images",
+  express.static(path.join(process.cwd(), "public/assets/general"))
+);
+
 connectDb()
   .then(() => {
-    insertRestaurants();
-    seedProducts();
+    insertRestaurants().then(() => {
+      seedProducts().then(() => {
+        console.log("Initial data inserted");
+      });
+    });
     console.log("Connected to MongoDB");
 
     const PORT = process.env.PORT || 3001;
